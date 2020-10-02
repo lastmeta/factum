@@ -48,14 +48,5 @@ d.run()
 >>> 4
 
 d.visualize()
-# not implemented
-
-   D
-   ^
-   |
-   C
-  ^ ^
- /   \
-A     B
 
 ```
