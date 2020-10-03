@@ -1,4 +1,4 @@
-class DataFunction():
+class DataFact():
     '''
     basically a static function that has no inputs and no caching, it returns data.
     it might have code to first get that data from a database in it, but it
@@ -11,8 +11,8 @@ class DataFunction():
 
     def __init__(
         self,
-        name: str = None,
         transform: callable = None,
+        name: str = None,
         **kwargs
     ):
         '''
@@ -26,7 +26,7 @@ class DataFunction():
         self.outsig = None
         self.__dict__.update({
             k: v for k, v in kwargs.items()
-            if k not in dir(Function)})
+            if k not in dir(Fact)})
 
     @staticmethod
     def sha256(data):
@@ -50,7 +50,7 @@ class DataFunction():
             if self.transform.__name__ != 'transform'
             else (
                 self.__repr__().split()[0].split('.')[-1]
-                if self.__repr__().split()[0].split('.')[-1] not in ['Function', 'DataAmigo', 'MindlessAmigo', 'Amigo']
+                if self.__repr__().split()[0].split('.')[-1] not in ['Fact', 'DataFact', 'MindlessFact', 'Fact']
                 else generate_random_name(12)))
 
     def set_transform(self, function: callable = None):
@@ -79,7 +79,7 @@ class DataFunction():
         import collections
         output = self.transform()
         if isinstance(output, collections.Hashable):
-            this_hash = DataFunction.sha256(output)
+            this_hash = DataFact.sha256(output)
             if this_hash != self.outsig:
                 self.outsig == this_hash
                 self.set_latest()
@@ -100,7 +100,7 @@ class DataFunction():
         return self.transform()
 
 
-class MindlessFunction(DataFunction):
+class MindlessFact(DataFact):
     '''
     basically a function that is responsible for
     getting its own inputs, has no caching functionality.
@@ -113,9 +113,9 @@ class MindlessFunction(DataFunction):
 
     def __init__(
         self,
+        transform: callable = None,
         inputs: dict = None,
         name: str = None,
-        transform: callable = None,
         **kwargs
     ):
         '''
@@ -124,7 +124,7 @@ class MindlessFunction(DataFunction):
             meta: dict (a good place to store meta data)
         '''
         self.set_inputs(inputs=inputs or {})
-        super(MindlessFunction, self).__init__(name, transform, **kwargs)
+        super(MindlessFact, self).__init__(transform, name, **kwargs)
 
     def set_inputs(self, inputs: dict):
         self.inputs = inputs
@@ -146,7 +146,7 @@ class MindlessFunction(DataFunction):
             name: function_object.run(*args, **kwargs)
             for name, function_object in self.inputs.items()})
         if isinstance(output, collections.Hashable):
-            this_hash = MindlessFunction.sha256(output)
+            this_hash = MindlessFact.sha256(output)
             if this_hash != self.outsig:
                 self.outsig == this_hash
                 self.set_latest()
@@ -215,7 +215,7 @@ class MindlessFunction(DataFunction):
         plt.show()
 
 
-class Function(MindlessFunction):
+class Fact(MindlessFact):
     '''
     basically a function that is responsible for
     getting its own inputs and remembering its own outputs
@@ -228,9 +228,9 @@ class Function(MindlessFunction):
 
     def __init__(
         self,
+        transform: callable = None,
         inputs: dict = None,
         name: str = None,
-        transform: callable = None,
         **kwargs
     ):
         '''
@@ -240,7 +240,7 @@ class Function(MindlessFunction):
             meta: dict (a good place to store meta data)
         '''
         self.clear(memory=True)
-        super(Function, self).__init__(inputs, name, transform, **kwargs)
+        super(Fact, self).__init__(transform, inputs, name, **kwargs)
 
 
     def set_inputs(self, inputs: dict):
