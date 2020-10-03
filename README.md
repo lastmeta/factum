@@ -1,6 +1,6 @@
 # Factum
 
-What if every function remembered it's own output, and knew when and where to acquire it's own inputs?
+_What if every function remembered it's own output, and knew when and where to acquire it's own inputs?_
 
 Factum is a simple agent-inspired framework for computational DAG composition and execution.
 
@@ -36,16 +36,16 @@ def c_node(self, **kwargs):
 def d_node(self, **kwargs):
     return self._transformation(**kwargs)
 
-def _transformation(self, **kw):
+def _transformation(self, cthing, **kw):
     print('D running!')
-    return kw['C'] + 1
+    return cthing + 1
 
 # Fact(function, inputs, name)
 
 a = Fact(a_node)
 b = Fact(b_node, None, 'Beta')
 c = Fact(c_node, {'A': a, 'B': b})
-d = Fact(d_node, {'C': c})
+d = Fact(d_node, {'cthing': c})
 d.add_method(_transformation)
 
 d.run()

@@ -6,7 +6,7 @@ def get_long_description():
         return fh.read()
 
 def get_name():
-    return 'fact'
+    return 'factum'
 
 def get_version():
     return '0.0.1'
@@ -14,7 +14,7 @@ def get_version():
 setup(
     name=get_name(),
     version=get_version(),
-    description='fact ',
+    description='a simple agent-inspired DAG composition and execution framework',
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     packages=[f'{get_name()}.{p}' for p in find_packages(where=get_name())],
@@ -25,7 +25,7 @@ setup(
     python_requires='>=3.5.2',
     author='Jordan Miller',
     author_email="paradoxlabs@protonmail.com",
-    url="https://github.com/propername/fact",
+    url="https://github.com/propername/factum",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
