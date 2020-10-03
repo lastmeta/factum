@@ -38,10 +38,20 @@ class DataFunction():
         self.outsig = None
 
     def set_name(self, name: str):
+
+        def generate_random_name(length: int = 12):
+            import random
+            import string
+            letters = string.ascii_lowercase
+            return ''.join(random.choice(letters) for i in range(length))
+
         self.name = name or (
             self.transform.__name__
             if self.transform.__name__ != 'transform'
-            else self.__repr__().split()[0].split('.')[-1])
+            else (
+                self.__repr__().split()[0].split('.')[-1]
+                if self.__repr__().split()[0].split('.')[-1] not in ['Function', 'DataAmigo', 'MindlessAmigo', 'Amigo']
+                else generate_random_name(12)))
 
     def set_transform(self, function: callable = None):
         if function is None:
@@ -170,7 +180,7 @@ class MindlessFunction(DataFunction):
             for parent in parents:
                 if not graph.has_node(parent.name):
                     graph.add_node(parent.name)
-                    sizes.append(1200 if hasattr(parent, 'cached') and parent.cached else 600)
+                    sizes.append(1200 if parent.latest else 600)
                     colors.append(
                         '#d7a9e3'
                         if parent in [v for v in self.inputs.values()]
@@ -187,7 +197,7 @@ class MindlessFunction(DataFunction):
         ancestors = []
         if not graph.has_node(self.name):
             graph.add_node(self.name)
-            sizes.append(1200 if hasattr(self, 'cached') and self.cached else 600)
+            sizes.append(1200 if self.latest else 600)
             colors.append('#a8d5ba')
         graph_heritage(current=self, seen=[])
         graph.add_edges_from(ancestors, weight=1)
@@ -246,6 +256,7 @@ class Function(MindlessFunction):
         self,
         gas: int = 0,
         condition: str = None,
+        force: bool = False,
         **kwargs
     ):
         '''
@@ -273,46 +284,44 @@ class Function(MindlessFunction):
         the function to execute if the object provides up-to-date source data.
         this could be accomplished by providing the following keyword argument:
             `condition="self.kind == 'data'"`
+
+        force means you want the function to run if it has gas to do so.
         '''
-        answer = self.gather(gas)
-        if answer is None:
-            # either I don't have a cache, or some ancestor ran recently.
+        if self.gather(gas) is None:
             gas = gas if gas <= 0 else gas -1
             self.function(**{
-                name: function_object.run(gas=gas, condition=condition, **kwargs)
-                for name, function_object in self.inputs.items()})
-        elif condition is not None and eval(condition):
-            # I'm cached and up to date but maybe I should run because I'm an input node or something...
-            self.function(**{
-                name: function_object.run(gas=0, condition=condition, **kwargs)
-                for name, function_object in self.inputs.items()})
+                name: amigo.run(gas=gas, condition=condition, force=force, **kwargs)
+                for name, amigo in self.inputs.items()})
+        elif condition is not None:
+            try:
+                evaluated = eval(condition)
+            except Exception as e:
+                evaluated = False
+            if evaluated:
+                gas = gas if gas <= 0 else gas -1
+                self.function(**{
+                    name: amigo.run(gas=gas, condition=condition, force=force, **kwargs)
+                    for name, amigo in self.inputs.items()})
         elif gas == -1:
-            # I'm cached and up to date but I'm being told to run anyway and so is everyone else...
             self.function(**{
-                name: function_object.run(gas=gas, condition=condition, **kwargs)
-                for name, function_object in self.inputs.items()})
-        else:  # gas >= 0
-            # I'm cached and up to date... so I don't need to run.
-            # if something has been updated so I needed to run, we would have found it in gather.
-            pass
+                name: amigo.run(gas=gas, condition=condition, force=force, **kwargs)
+                for name, amigo in self.inputs.items()})
+        elif gas > 0 and force:
+            gas = gas if gas <= 0 else gas -1
+            self.function(**{
+                name: amigo.run(gas=gas, condition=condition, force=force, **kwargs)
+                for name, amigo in self.inputs.items()})
         return self.get()
 
     def gather(self, gas: int = 0):
         ''' gets the latest timestamp out of everything '''
         if gas != 0 and self.latest is not None:
-            if gas >= 1:
-                gas -= 1
-            # there's actually no need to make a full list...
-            #for name, function_object in self.inputs.items():
-            #    self.ranutc[name] = function_object.gather(gas=gas)
-            #for value in self.ranutc.values():
-            #    if value is None or value > self.latest:
-            #        return None
-            for name, function_object in self.inputs.items():
-                if hasattr(function_object, 'gather'):
-                    value = function_object.gather(gas)
+            gas = gas if gas <= 0 else gas -1
+            for name, amigo in self.inputs.items():
+                if hasattr(amigo, 'gather'):
+                    value = amigo.gather(gas)
                 else:
-                    value = function_object.latest
+                    value = amigo.latest
                 if value is None or value > self.latest:
                     return None
         return self.latest
