@@ -253,13 +253,9 @@ class Fact(MindlessFact):
             self.output = None
 
     def save(self, folder: str = None):
-        if self.latest is None:
-            return
         self.to_binary(folder)
 
     def restore(self, folder: str = None):
-        if self.latest is None:
-            return
         self.from_binary(folder)
 
     def to_binary(self, folder: str = None):
