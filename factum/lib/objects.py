@@ -252,6 +252,40 @@ class Fact(MindlessFact):
         if memory:
             self.output = None
 
+    def save(self, folder: str = None):
+        if self.latest is None:
+            return
+        self.to_binary(folder)
+
+    def restore(self, folder: str = None):
+        if self.latest is None:
+            return
+        self.from_binary(folder)
+
+    def to_binary(self, folder: str = None):
+        import os
+        import pickle
+        folder = folder or os.getcwd()
+        os.makedirs(folder, mode=0o777, exist_ok=True)
+        with open(os.path.join(folder, self.name, 'output'), mode='wb') as f:
+            pickle.dump(self.output, f)
+        with open(os.path.join(folder, self.name, 'inputs'), mode='wb') as f:
+            pickle.dump(self.inputs, f)
+        with open(os.path.join(folder, self.name, 'latest'), mode='wb') as f:
+            pickle.dump(self.latest, f)
+
+    def from_binary(self, folder: str = None):
+        import os
+        import pickle
+        folder = folder or os.getcwd()
+        os.makedirs(folder, mode=0o777, exist_ok=True)
+        with open(os.path.join(folder, self.name, 'output'), mode='rb') as f:
+            self.output = pickle.load(f)
+        with open(os.path.join(folder, self.name, 'inputs'), mode='rb') as f:
+            self.inputs = pickle.load(f)
+        with open(os.path.join(folder, self.name, 'latest'), mode='rb') as f:
+            self.latest = pickle.load(f)
+
     def run(
         self,
         gas: int = 0,
@@ -260,21 +294,15 @@ class Fact(MindlessFact):
         **kwargs
     ):
         '''
-        if I have no timestamp - gather all inputs and run.
+        `run()` tells asks the Fact to return cache if the cache is available
+        and up-to-date, or, if it isn't, gather the required inputs and execute
+        the function defined as 'transform'.
 
-        condition
-
-        gas = 0
-            if do not I have a timestamp, indicating I have not cached data update my input for that thing and run.
-            return cache
-        gas >= 1
-            if any of my inputs have a later run date than me, update my input for that thing and run.
-            return cache
-
-        gas can specify if we should pull from cache or not in this way:
-        -1 - infinite gas (DAGs only!)
+        `gas` can specify how far back in the network we should look to verify
+        that our cache is up-to-date. valid values range from -1 and up:
+        -1 - infinite gas (DAGs only!) forces execution of all ancestors and self
         0 - if cache: cache, else: get inputs, do function, save as cache
-        1 - request cached inputs and run functionality (default)
+        1 - request cached inputs and run functionality
         2 - request non-cached inputs and run functionality
         3 - request that inputs request non-cached inputs and recalculate...
         4+ - so on and so forth...
@@ -283,15 +311,15 @@ class Fact(MindlessFact):
         execution according to the condition itself. for instance one may want
         the function to execute if the object provides up-to-date source data.
         this could be accomplished by providing the following keyword argument:
-            `condition="self.kind == 'data'"`
+        `condition="self.kind == 'data'"`
 
         force means you want the function to run if it has gas to do so.
         '''
         if self.gather(gas) is None:
             gas = gas if gas <= 0 else gas -1
             self.function(**{
-                name: amigo.run(gas=gas, condition=condition, force=force, **kwargs)
-                for name, amigo in self.inputs.items()})
+                name: fact.run(gas=gas, condition=condition, force=force, **kwargs)
+                for name, fact in self.inputs.items()})
         elif condition is not None:
             try:
                 evaluated = eval(condition)
@@ -300,28 +328,28 @@ class Fact(MindlessFact):
             if evaluated:
                 gas = gas if gas <= 0 else gas -1
                 self.function(**{
-                    name: amigo.run(gas=gas, condition=condition, force=force, **kwargs)
-                    for name, amigo in self.inputs.items()})
+                    name: fact.run(gas=gas, condition=condition, force=force, **kwargs)
+                    for name, fact in self.inputs.items()})
         elif gas == -1:
             self.function(**{
-                name: amigo.run(gas=gas, condition=condition, force=force, **kwargs)
-                for name, amigo in self.inputs.items()})
+                name: fact.run(gas=gas, condition=condition, force=force, **kwargs)
+                for name, fact in self.inputs.items()})
         elif gas > 0 and force:
             gas = gas if gas <= 0 else gas -1
             self.function(**{
-                name: amigo.run(gas=gas, condition=condition, force=force, **kwargs)
-                for name, amigo in self.inputs.items()})
+                name: fact.run(gas=gas, condition=condition, force=force, **kwargs)
+                for name, fact in self.inputs.items()})
         return self.get()
 
     def gather(self, gas: int = 0):
         ''' gets the latest timestamp out of everything '''
         if gas != 0 and self.latest is not None:
             gas = gas if gas <= 0 else gas -1
-            for name, amigo in self.inputs.items():
-                if hasattr(amigo, 'gather'):
-                    value = amigo.gather(gas)
+            for name, fact in self.inputs.items():
+                if hasattr(fact, 'gather'):
+                    value = fact.gather(gas)
                 else:
-                    value = amigo.latest
+                    value = fact.latest
                 if value is None or value > self.latest:
                     return None
         return self.latest

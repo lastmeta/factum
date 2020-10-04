@@ -8,3 +8,6 @@ crash.log
 *.box
 *.ipynb_checkpoints*
 *.egg*
+
+build/
+dist/
