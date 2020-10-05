@@ -131,7 +131,7 @@ class MindlessFact(DataFact):
 
     def run(self, *args, **kwargs):
         '''
-        might use gas in kwargs. we always aquire because we have no cache
+        might use gas in kwargs. we always acquire because we have no cache
         we garbage collect the inputs by calling the function directly.
         '''
         if len(args) >= 1:
@@ -142,9 +142,7 @@ class MindlessFact(DataFact):
 
     def function(self, *args, **kwargs):
         import collections
-        output = self.transform(**{
-            name: function_object.run(*args, **kwargs)
-            for name, function_object in self.inputs.items()})
+        output = self.transform(**self.acquire(*args, **kwargs))
         if isinstance(output, collections.Hashable):
             this_hash = MindlessFact.sha256(output)
             if this_hash != self.outsig:
@@ -153,6 +151,17 @@ class MindlessFact(DataFact):
         else:
             self.set_latest()
         return output
+
+    def acquire(self, *args, **kwargs):
+        '''
+        acquire the ouputs all named inputs
+        inputs can Fact objects or callable
+        '''
+        return {
+            name: (
+                function_object.run(*args, **kwargs)
+                if isinstance(function_object, DataFact) else function_object())
+            for name, function_object in self.inputs.items()}
 
     def transform(self, **kw):
         ''' main '''
@@ -252,6 +261,21 @@ class Fact(MindlessFact):
         if memory:
             self.output = None
 
+    def to_dag(self):
+        '''
+        exports all ancestors. loop through all inputs, ask for the map of their inputs
+        since names must be unique, use the object names as keys wherever possible.
+        example:
+        a and b feed to c then c to d. d.to_dag() ->
+        {
+            d.name: (d.run, [c.name]),
+            c.name: (c.run, [a.name, b.name]),
+            b.name: (b.run, []),
+            a.name: (a.run, []),
+        }
+        '''
+
+
     def save(self, folder: str = None):
         self.to_binary(folder)
 
@@ -313,9 +337,7 @@ class Fact(MindlessFact):
         '''
         if self.gather(gas) is None:
             gas = gas if gas <= 0 else gas -1
-            self.function(**{
-                name: fact.run(gas=gas, condition=condition, force=force, **kwargs)
-                for name, fact in self.inputs.items()})
+            self.function(**self.acquire(gas=gas, condition=condition, force=force, **kwargs))
         elif condition is not None:
             try:
                 evaluated = eval(condition)
@@ -323,18 +345,12 @@ class Fact(MindlessFact):
                 evaluated = False
             if evaluated:
                 gas = gas if gas <= 0 else gas -1
-                self.function(**{
-                    name: fact.run(gas=gas, condition=condition, force=force, **kwargs)
-                    for name, fact in self.inputs.items()})
+                self.function(**self.acquire(gas=gas, condition=condition, force=force, **kwargs))
         elif gas == -1:
-            self.function(**{
-                name: fact.run(gas=gas, condition=condition, force=force, **kwargs)
-                for name, fact in self.inputs.items()})
+            self.function(**self.acquire(gas=gas, condition=condition, force=force, **kwargs))
         elif gas > 0 and force:
             gas = gas if gas <= 0 else gas -1
-            self.function(**{
-                name: fact.run(gas=gas, condition=condition, force=force, **kwargs)
-                for name, fact in self.inputs.items()})
+            self.function(**self.acquire(gas=gas, condition=condition, force=force, **kwargs))
         return self.get()
 
     def gather(self, gas: int = 0):
@@ -342,11 +358,16 @@ class Fact(MindlessFact):
         if gas != 0 and self.latest is not None:
             gas = gas if gas <= 0 else gas -1
             for name, fact in self.inputs.items():
-                if hasattr(fact, 'gather'):
-                    value = fact.gather(gas)
+                if isinstance(fact, DataFact):
+                    if hasattr(fact, 'gather'):
+                        value = fact.gather(gas)
+                    else:
+                        value = fact.latest
                 else:
-                    value = fact.latest
-                if value is None or value > self.latest:
+                    value = ''
+                if isinstance(value, str):
+                    continue
+                elif value is None or value > self.latest:
                     return None
         return self.latest
 
