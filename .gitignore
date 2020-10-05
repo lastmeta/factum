@@ -11,3 +11,4 @@ crash.log
 
 build/
 dist/
+__pycache__

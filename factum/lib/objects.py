@@ -24,6 +24,7 @@ class DataFact():
         self.set_name(name)
         self.latest = None
         self.outsig = None
+        self.caller = None
         self.__dict__.update({
             k: v for k, v in kwargs.items()
             if k not in dir(Fact)})
@@ -53,6 +54,7 @@ class DataFact():
                 if self.__repr__().split()[0].split('.')[-1] not in ['Fact', 'DataFact', 'MindlessFact', 'Fact']
                 else generate_random_name(12)))
 
+
     def set_transform(self, function: callable = None):
         if function is None:
             return
@@ -60,6 +62,7 @@ class DataFact():
             self.transform = function.__get__(self)
         else:
             self.transform = function
+        self.module = function.__module__
 
     def add_method(self, function: callable):
         '''
@@ -73,6 +76,8 @@ class DataFact():
             exec(f'self.{function.__name__} = function')
 
     def run(self, *args, **kwargs):
+        if 'caller' in kwargs:
+            self.caller = f"{kwargs['caller']}"
         return self.function()
 
     def function(self):
@@ -134,6 +139,11 @@ class MindlessFact(DataFact):
         might use gas in kwargs. we always acquire because we have no cache
         we garbage collect the inputs by calling the function directly.
         '''
+        if 'caller' in kwargs:
+            self.caller = kwargs['caller']
+            kwargs['caller'] = f"{kwargs['caller']}.{self.name}"
+        else:
+            kwargs['caller'] = self.name
         if len(args) >= 1:
             args[0] -= 1
         if 'gas' in kwargs.keys() and kwargs.get('gas', 0) > 0:
@@ -273,7 +283,18 @@ class Fact(MindlessFact):
             b.name: (b.run, []),
             a.name: (a.run, []),
         }
+        d.name in the above dictionary might need to be the name of everything that came
+        before it too, in order to guarantee uniqueness.
         '''
+
+    def nested_name(self):
+        ''' nested import name '''
+        return f'{self.module}.{self.name}'
+
+    def tree_name(self):
+        ''' dag name '''
+        return f'{self.caller}.{self.name}'
+
 
 
     def save(self, folder: str = None):
@@ -335,6 +356,12 @@ class Fact(MindlessFact):
 
         force means you want the function to run if it has gas to do so.
         '''
+        if 'caller' in kwargs:
+            self.caller = kwargs['caller']
+            kwargs['caller'] = f"{kwargs['caller']}.{self.name}"
+        else:
+            kwargs['caller'] = self.name
+
         if self.gather(gas) is None:
             gas = gas if gas <= 0 else gas -1
             self.function(**self.acquire(gas=gas, condition=condition, force=force, **kwargs))
