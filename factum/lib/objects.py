@@ -71,7 +71,8 @@ class DataFact():
     def set_transform(self, function: callable = None):
         if function is None:
             return
-        if function.__code__.co_varnames[0] == 'self':
+        if (len(function.__code__.co_varnames) > 0 and
+            function.__code__.co_varnames[0] == 'self'):
             self.transform = function.__get__(self)
         else:
             self.transform = function
@@ -144,6 +145,30 @@ class MindlessFact(DataFact):
         '''
         self.set_inputs(inputs=inputs or {})
         super(MindlessFact, self).__init__(transform, name, **kwargs)
+
+    def __gt__(self, fact: DataFact):
+        ''' adds it as an arg '''
+        fact.add_input(fact=self)
+
+    def __rshift__(self, fact: DataFact):
+        ''' adds it as a kwarg '''
+        fact.add_input(fact=self, name=self.name)
+
+    def add_input(self, fact, name: str = None):
+        ''' fact should be DataFact or callable '''
+        if name:
+            self.kwargs[name] = fact
+        else:
+            if self.args is None:
+                self.args = []
+            self.args.append(fact)
+
+    def apply_context(self, fact: DataFact, name: str = 'context'):
+        ''' adds it as a kwarg to the entire dag '''
+        for input_fact in self.input_facts():
+            if input_fact.name != name:
+                input_fact.apply_context(fact, name)
+        self.add_input(fact=fact, name=name)
 
     def set_inputs(self, inputs: dict):
         self.inputs = inputs
