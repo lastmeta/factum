@@ -20,6 +20,7 @@ class DataFact():
             kind: str (for example: 'data', 'view', 'task', 'transform', etc.)
             meta: dict (a good place to store meta data)
         '''
+        self.module = None
         self.set_transform(transform)
         self.set_name(name)
         self.latest = None
@@ -37,6 +38,7 @@ class DataFact():
     def clear(self):
         self.latest = None
         self.outsig = None
+        self.caller = None
 
     def set_name(self, name: str):
 
@@ -54,6 +56,17 @@ class DataFact():
                 if self.__repr__().split()[0].split('.')[-1] not in ['Fact', 'DataFact', 'MindlessFact', 'Fact']
                 else generate_random_name(12)))
 
+    def nested_name(self):
+        ''' nested import name '''
+        if self.module is None:
+            return self.name
+        return f'{self.module}.{self.name}'
+
+    def tree_name(self):
+        ''' dag name '''
+        if self.caller is None:
+            return self.name
+        return f'{self.caller}.{self.name}'
 
     def set_transform(self, function: callable = None):
         if function is None:
@@ -76,6 +89,7 @@ class DataFact():
             exec(f'self.{function.__name__} = function')
 
     def run(self, *args, **kwargs):
+        ''' we need to do better at defining the protocol for this... '''
         if 'caller' in kwargs:
             self.caller = f"{kwargs['caller']}"
         return self.function()
@@ -133,6 +147,26 @@ class MindlessFact(DataFact):
 
     def set_inputs(self, inputs: dict):
         self.inputs = inputs
+        self.match_inputs()
+
+    def match_inputs(self):
+        ''' figure out if we were handed args, kwargs, or args and kwargs '''
+        self.args = None
+        self.kwargs = None
+        if isinstance(self.inputs, tuple):
+            if (
+                len(self.inputs) == 2 and
+                isinstance(self.inputs[0], list) and
+                isinstance(self.inputs[1], dict)
+            ):
+                self.args = self.inputs[0]
+                self.kwargs = self.inputs[1]
+            else:
+                self.args = self.inputs
+        else:
+            self.kwargs = self.inputs
+        if self.kwargs is None:
+            self.kwargs == {}
 
     def run(self, *args, **kwargs):
         '''
@@ -152,7 +186,12 @@ class MindlessFact(DataFact):
 
     def function(self, *args, **kwargs):
         import collections
-        output = self.transform(**self.acquire(*args, **kwargs))
+        input_args = self.acquire_args(*args, **kwargs)
+        input_kwargs = self.acquire_kwargs(*args, **kwargs)
+        if input_args is None:
+            output = self.transform(**input_kwargs)
+        else:
+            output = self.transform(*input_args, **input_kwargs)
         if isinstance(output, collections.Hashable):
             this_hash = MindlessFact.sha256(output)
             if this_hash != self.outsig:
@@ -162,23 +201,35 @@ class MindlessFact(DataFact):
             self.set_latest()
         return output
 
-    def acquire(self, *args, **kwargs):
+    def acquire_args(self, *args, **kwargs):
         '''
         acquire the ouputs all named inputs
         inputs can Fact objects or callable
+        assumes this pattern denotes args and kwargs: ([], {})
         '''
+        if self.args:
+            return [(
+                    function_object.run(*args, **kwargs)
+                    if isinstance(function_object, DataFact)
+                    else function_object())
+                for function_object in self.args]
+
+    def acquire_kwargs(self, *args, **kwargs):
         return {
             name: (
                 function_object.run(*args, **kwargs)
-                if isinstance(function_object, DataFact) else function_object())
-            for name, function_object in self.inputs.items()}
+                if isinstance(function_object, DataFact)
+                else function_object())
+            for name, function_object in self.kwargs.items()}
 
-    def transform(self, **kw):
+    def transform(self, *args, **kwargs):
         ''' main '''
         return self.name
 
-    def visualize(self, size=(8,5)):
+    def visualize(self, size: tuple = (8,5), name_kind: str = 'name', quick: bool = False):
         '''
+        size - tuple of 2 integers
+        name_kind = 'name' or 'tree_name' or 'nested_name'
         minimal
         indications:
             color: root node, parent nodes, ancestor nodes
@@ -195,16 +246,24 @@ class MindlessFact(DataFact):
 
         def graph_heritage(current, seen):
             seen.append(current)
-            parents = [v for v in current.inputs.values()]
+            parents = (
+                [a for a in current.args] + [v for v in current.kwargs.values()]
+                if current.args is not None
+                else [v for v in current.kwargs.values()])
             for parent in parents:
-                if not graph.has_node(parent.name):
-                    graph.add_node(parent.name)
+                parent_name = eval(f'parent.{name_kind}{"" if name_kind == "name" else "()"}')
+                if not graph.has_node(parent_name):
+                    graph.add_node(parent_name)
                     sizes.append(1200 if parent.latest else 600)
                     colors.append(
                         '#d7a9e3'
-                        if parent in [v for v in self.inputs.values()]
+                        if parent in (
+                            [a for a in self.args] + [v for v in self.kwargs.values()]
+                            if self.args is not None
+                            else [v for v in self.kwargs.values()])
                         else '#8bbee8')
-                ancestors.append((parent.name, current.name))
+                current_name = eval(f'current.{name_kind}{"" if name_kind == "name" else "()"}')
+                ancestors.append((parent_name, current_name))
                 if parent not in seen:
                     graph_heritage(current=parent, seen=seen)
 
@@ -214,22 +273,15 @@ class MindlessFact(DataFact):
         colors = []
         sizes = []
         ancestors = []
-        if not graph.has_node(self.name):
-            graph.add_node(self.name)
+        self_name = eval(f'self.{name_kind}{"" if name_kind == "name" else "()"}')
+        if not graph.has_node(self_name):
+            graph.add_node(self_name)
             sizes.append(1200 if self.latest else 600)
             colors.append('#a8d5ba')
         graph_heritage(current=self, seen=[])
         graph.add_edges_from(ancestors, weight=1)
-        pos = nx.spring_layout(graph)
+        pos = nx.spring_layout(graph, **({} if quick else {'iterations':100}))
         nx.draw(graph, pos, with_labels=True, node_color=colors, node_size=sizes)
-
-        # gives all nodes a border
-        #ax= plt.gca()
-        ##print(ax.collections[0])
-        ##return ax.collections
-        #ax.collections[0].set_edgecolor("#000000")
-        #plt.axis('off')
-
         plt.rcParams["figure.figsize"] = size
         plt.show()
 
@@ -261,13 +313,9 @@ class Fact(MindlessFact):
         self.clear(memory=True)
         super(Fact, self).__init__(transform, inputs, name, **kwargs)
 
-
-    def set_inputs(self, inputs: dict):
-        self.inputs = inputs
-        self.ranutc = {name: None for name in self.inputs.keys()}
-
     def clear(self, memory: bool = False):
         self.latest = None
+        self.caller = None
         if memory:
             self.output = None
 
@@ -286,16 +334,6 @@ class Fact(MindlessFact):
         d.name in the above dictionary might need to be the name of everything that came
         before it too, in order to guarantee uniqueness.
         '''
-
-    def nested_name(self):
-        ''' nested import name '''
-        return f'{self.module}.{self.name}'
-
-    def tree_name(self):
-        ''' dag name '''
-        return f'{self.caller}.{self.name}'
-
-
 
     def save(self, folder: str = None):
         self.to_binary(folder)
@@ -362,29 +400,35 @@ class Fact(MindlessFact):
         else:
             kwargs['caller'] = self.name
 
+        kwargs['condition'] = condition
+        kwargs['force'] = force
         if self.gather(gas) is None:
-            gas = gas if gas <= 0 else gas -1
-            self.function(**self.acquire(gas=gas, condition=condition, force=force, **kwargs))
+            kwargs['gas'] = gas if gas <= 0 else gas - 1
+            self.function(**kwargs)
         elif condition is not None:
             try:
                 evaluated = eval(condition)
             except Exception as e:
                 evaluated = False
             if evaluated:
-                gas = gas if gas <= 0 else gas -1
-                self.function(**self.acquire(gas=gas, condition=condition, force=force, **kwargs))
+                kwargs['gas'] = gas if gas <= 0 else gas - 1
+                self.function(**kwargs)
         elif gas == -1:
-            self.function(**self.acquire(gas=gas, condition=condition, force=force, **kwargs))
+            self.function(**kwargs)
         elif gas > 0 and force:
-            gas = gas if gas <= 0 else gas -1
-            self.function(**self.acquire(gas=gas, condition=condition, force=force, **kwargs))
+            kwargs['gas'] = gas if gas <= 0 else gas - 1
+            self.function(**kwargs)
         return self.get()
 
     def gather(self, gas: int = 0):
         ''' gets the latest timestamp out of everything '''
         if gas != 0 and self.latest is not None:
-            gas = gas if gas <= 0 else gas -1
-            for name, fact in self.inputs.items():
+            gas = gas if gas <= 0 else gas - 1
+            inputs = (
+                [a for a in self.args] + [v for v in self.kwargs.values()]
+                if self.args is not None
+                else [v for v in self.kwargs.values()])
+            for fact in inputs:
                 if isinstance(fact, DataFact):
                     if hasattr(fact, 'gather'):
                         value = fact.gather(gas)
@@ -401,9 +445,14 @@ class Fact(MindlessFact):
     def get(self):
         return self.output
 
-    def function(self, **kwargs):
+    def function(self, *args, **kwargs):
         temp = self.output
-        self.output = self.transform(**kwargs)
+        input_args = self.acquire_args(*args, **kwargs)
+        input_kwargs = self.acquire_kwargs(*args, **kwargs)
+        if input_args is None:
+            self.output = self.transform(**input_kwargs)
+        else:
+            self.output = self.transform(*input_args, **input_kwargs)
         if temp != self.output:
             self.set_latest()
 

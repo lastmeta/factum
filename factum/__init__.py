@@ -1,1 +1,1 @@
-from factum.lib.objects import Fact
+from factum.lib.objects import DataFact, MindlessFact, Fact
