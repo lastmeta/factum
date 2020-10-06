@@ -9,7 +9,7 @@ def get_name():
     return 'factum'
 
 def get_version():
-    return '0.0.1'
+    return '0.0.2'
 
 setup(
     name=get_name(),
