@@ -170,7 +170,6 @@ class MindlessFact(DataFact):
         if self.kwargs is None:
             self.kwargs = {}
 
-
     def run(self, *args, **kwargs):
         '''
         might use gas in kwargs. we always acquire because we have no cache
@@ -225,6 +224,22 @@ class MindlessFact(DataFact):
                 else function_object())
             for name, function_object in self.kwargs.items()}
 
+    def input_facts(self, fact: DataFact = None):
+        fact = fact or self
+        return (
+            [a for a in fact.args if isinstance(a, DataFact)] +
+            [v for v in fact.kwargs.values() if isinstance(v, DataFact)]
+            if fact.args is not None
+            else [v for v in fact.kwargs.values() if isinstance(v, DataFact)])
+
+    def input_callables(self, fact: DataFact = None):
+        fact = fact or self
+        return (
+            [a for a in fact.args if not isinstance(a, DataFact)] +
+            [v for v in fact.kwargs.values() if not isinstance(v, DataFact)]
+            if fact.args is not None
+            else [v for v in fact.kwargs.values() if not isinstance(v, DataFact)])
+
     def transform(self, *args, **kwargs):
         ''' main '''
         return self.name
@@ -249,22 +264,13 @@ class MindlessFact(DataFact):
 
         def graph_heritage(current, seen):
             seen.append(current)
-            parents = (
-                [a for a in current.args] + [v for v in current.kwargs.values()]
-                if current.args is not None
-                else [v for v in current.kwargs.values()])
+            parents = self.input_facts(current) + self.input_callables(current)
             for parent in parents:
                 parent_name = eval(f'parent.{name_kind}{"" if name_kind == "name" else "()"}')
                 if not graph.has_node(parent_name):
                     graph.add_node(parent_name)
                     sizes.append(1200 if parent.latest else 600)
-                    colors.append(
-                        '#d7a9e3'
-                        if parent in (
-                            [a for a in self.args] + [v for v in self.kwargs.values()]
-                            if self.args is not None
-                            else [v for v in self.kwargs.values()])
-                        else '#8bbee8')
+                    colors.append('#d7a9e3' if parent in self.input_facts() + self.input_callables() else '#8bbee8')
                 current_name = eval(f'current.{name_kind}{"" if name_kind == "name" else "()"}')
                 ancestors.append((parent_name, current_name))
                 if parent not in seen:
@@ -329,14 +335,22 @@ class Fact(MindlessFact):
         example:
         a and b feed to c then c to d. d.to_dag() ->
         {
-            d.name: (d.run, [c.name]),
-            c.name: (c.run, [a.name, b.name]),
-            b.name: (b.run, []),
-            a.name: (a.run, []),
+            d.nested_name: (d.run, [c.nested_name]),
+            c.nested_name: (c.run, [a.nested_name, b.nested_name]),
+            b.nested_name: (b.run, []),
+            a.nested_name: (a.run, []),
         }
         d.name in the above dictionary might need to be the name of everything that came
-        before it too, in order to guarantee uniqueness.
+        before it too, in order to guarantee uniqueness. doesn't handle non Facts yet.
         '''
+        mine = self.input_facts()
+        me = {self.nested_name(): (self.run, [m.nested_name() for m in mine])}
+        if mine == []:
+            return me
+        below = {}
+        for entity in mine:
+            below = {**below, **entity.to_dag()}
+        return {**me, **below}
 
     def save(self, folder: str = None):
         self.to_binary(folder)
