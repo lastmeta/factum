@@ -91,7 +91,7 @@ class DataFact():
     def run(self, *args, **kwargs):
         ''' we need to do better at defining the protocol for this... '''
         if 'caller' in kwargs:
-            self.caller = f"{kwargs['caller']}"
+            self.caller = kwargs['caller']
         return self.function()
 
     def function(self):
@@ -163,10 +163,13 @@ class MindlessFact(DataFact):
                 self.kwargs = self.inputs[1]
             else:
                 self.args = self.inputs
+        elif isinstance(self.inputs, list):
+            self.args = self.inputs
         else:
             self.kwargs = self.inputs
         if self.kwargs is None:
-            self.kwargs == {}
+            self.kwargs = {}
+
 
     def run(self, *args, **kwargs):
         '''
