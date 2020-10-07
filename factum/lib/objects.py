@@ -269,7 +269,7 @@ class MindlessFact(DataFact):
         ''' main '''
         return self.name
 
-    def visualize(self, size: tuple = (8,5), name_kind: str = 'name', quick: bool = False):
+    def visualize(self, size: tuple = (8,5), name_kind: str = 'name'):
         '''
         size - tuple of 2 integers
         name_kind = 'name' or 'tree_name' or 'nested_name'
@@ -287,34 +287,43 @@ class MindlessFact(DataFact):
             indicators: namespacing, kind, time cost, popularity, etc...
         '''
 
-        def graph_heritage(current, seen):
+        def graph_heritage(current, seen, left):
             seen.append(current)
             parents = self.input_facts(current) + self.input_callables(current)
-            for parent in parents:
+            ups_deterministic = [
+                x / len(parents) + (1 / (len(parents) * 2))
+                for x in range(0, len(parents))]
+            for ix, parent in enumerate(parents):
                 parent_name = eval(f'parent.{name_kind}{"" if name_kind == "name" else "()"}')
                 if not graph.has_node(parent_name):
                     graph.add_node(parent_name)
                     sizes.append(1200 if parent.latest else 600)
                     colors.append('#d7a9e3' if parent in self.input_facts() + self.input_callables() else '#8bbee8')
+                    pos[parent_name] = (left, random.random())  # ups_deterministic[ix]
                 current_name = eval(f'current.{name_kind}{"" if name_kind == "name" else "()"}')
                 ancestors.append((parent_name, current_name))
                 if parent not in seen:
-                    graph_heritage(current=parent, seen=seen)
+                    graph_heritage(current=parent, seen=seen, left=left*0.85407)
 
+        import random
         import networkx as nx
         import matplotlib.pyplot as plt
         graph = nx.DiGraph()
         colors = []
         sizes = []
         ancestors = []
+        pos = {}
         self_name = eval(f'self.{name_kind}{"" if name_kind == "name" else "()"}')
         if not graph.has_node(self_name):
             graph.add_node(self_name)
             sizes.append(1200 if self.latest else 600)
             colors.append('#a8d5ba')
-        graph_heritage(current=self, seen=[])
+            pos[self_name] = (1, .5)
+        graph_heritage(current=self, seen=[], left=0.85407)
         graph.add_edges_from(ancestors, weight=1)
-        pos = nx.spring_layout(graph, **({} if quick else {'iterations':100}))
+        # pos = nx.spring_layout(graph, **({} if quick else {'iterations':100}))
+        # pos = {0: (0, 0), 1: (1, 0), 2: (0, 1), 3: (1, 1), 4: (0.5, 2.0)}
+
         nx.draw(graph, pos, with_labels=True, node_color=colors, node_size=sizes)
         plt.rcParams["figure.figsize"] = size
         plt.show()

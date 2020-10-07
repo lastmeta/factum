@@ -21,22 +21,22 @@ These `Fact` objects, taken together are wired up to require inputs from each ot
 ```
 from factum import Fact
 
-def a_node(*args, **kwargs):
+def a_node():
     print('A running!')
     return 1
 
-def b_node(*args, **kwargs):
+def b_node():
     print('B running!')
     return 2
 
-def c_node(*args, **kwargs):
+def c_node(*args):
     print('C running!')
-    return kwargs['A'] + kwargs['B']
+    return args[0] + args[1]
 
-def d_node(self, *args, **kwargs):
+def d_node(self, **kwargs):
     return self._transformation(**kwargs)
 
-def _transformation(self, cthing, **kw):
+def _transformation(self, cthing):
     print('D running!')
     return cthing + 1
 
