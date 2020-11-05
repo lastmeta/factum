@@ -5,7 +5,8 @@ class DataFact():
     does not have inputs passed to it.
 
     features:
-        - no inputs (does not rely on other nodes)
+        - has params (params are not facts)
+        - no inputs (does not rely on other nodes, inputs must be data)
         - no caching (runs it's computations everytime it's called)
     '''
 
@@ -20,6 +21,8 @@ class DataFact():
             kind: str (for example: 'data', 'view', 'task', 'transform', etc.)
             meta: dict (a good place to store meta data)
         '''
+        if not hasattr(self, 'args') and not hasattr(self, 'kwargs'):
+            self.set_inputs(inputs=kwargs.get('params', ([],{})))
         self.module = None
         self.set_transform(transform)
         self.set_name(name)
@@ -34,6 +37,47 @@ class DataFact():
     def sha256(data):
         import hashlib
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
+
+    def __lt__(self, input):
+        ''' adds it as an arg '''
+        self.add_input(input)
+
+    def __lshift__(self, input: tuple):
+        ''' adds it as an arg '''
+        self.add_input(input=input[1], name=input[0])
+
+    def add_input(self, input, name=None):
+        ''' input is anything '''
+        if name:
+            self.kwargs[name] = input
+        else:
+            if self.args is None:
+                self.args = []
+            self.args.append(input)
+
+    def set_inputs(self, inputs: dict):
+        self.match_inputs(inputs)
+
+    def match_inputs(self, inputs):
+        ''' figure out if we were handed args, kwargs, or args and kwargs '''
+        self.args = []
+        self.kwargs = {}
+        if isinstance(inputs, tuple):
+            if (
+                len(inputs) == 2 and
+                isinstance(inputs[0], list) and
+                isinstance(inputs[1], dict)
+            ):
+                self.args = inputs[0]
+                self.kwargs = inputs[1]
+            else:
+                self.args = inputs
+        elif isinstance(inputs, list):
+            self.args = inputs
+        elif isinstance(inputs, dict):
+            self.kwargs = inputs
+        else:
+            self.args = [inputs]
 
     def clear(self):
         self.latest = None
@@ -97,7 +141,7 @@ class DataFact():
 
     def function(self):
         import collections
-        output = self.transform()
+        output = self.transform(*self.args, **self.kwargs)
         if isinstance(output, collections.Hashable):
             this_hash = DataFact.sha256(output)
             if this_hash != self.outsig:
@@ -111,7 +155,7 @@ class DataFact():
         import datetime as dt
         self.latest = dt.datetime.utcnow().timestamp()
 
-    def transform(self):
+    def transform(self, *args, **kwargs):
         ''' main '''
         return self.name
 
@@ -148,52 +192,18 @@ class MindlessFact(DataFact):
 
     def __gt__(self, fact: DataFact):
         ''' adds it as an arg '''
-        fact.add_input(fact=self)
+        fact.add_input(input=self)
 
     def __rshift__(self, fact: DataFact):
         ''' adds it as a kwarg '''
-        fact.add_input(fact=self, name=self.name)
-
-    def add_input(self, fact, name: str = None):
-        ''' fact should be DataFact or callable '''
-        if name:
-            self.kwargs[name] = fact
-        else:
-            if self.args is None:
-                self.args = []
-            self.args.append(fact)
+        fact.add_input(input=self, name=self.name)
 
     def apply_context(self, fact: DataFact, name: str = 'context'):
         ''' adds it as a kwarg to the entire dag '''
         for input_fact in self.input_facts():
             if input_fact.name != name:
                 input_fact.apply_context(fact, name)
-        self.add_input(fact=fact, name=name)
-
-    def set_inputs(self, inputs: dict):
-        self.inputs = inputs
-        self.match_inputs()
-
-    def match_inputs(self):
-        ''' figure out if we were handed args, kwargs, or args and kwargs '''
-        self.args = None
-        self.kwargs = None
-        if isinstance(self.inputs, tuple):
-            if (
-                len(self.inputs) == 2 and
-                isinstance(self.inputs[0], list) and
-                isinstance(self.inputs[1], dict)
-            ):
-                self.args = self.inputs[0]
-                self.kwargs = self.inputs[1]
-            else:
-                self.args = self.inputs
-        elif isinstance(self.inputs, list):
-            self.args = self.inputs
-        else:
-            self.kwargs = self.inputs
-        if self.kwargs is None:
-            self.kwargs = {}
+        self.add_input(input=fact, name=name)
 
     def run(self, *args, **kwargs):
         '''
@@ -399,8 +409,10 @@ class Fact(MindlessFact):
         os.makedirs(folder, mode=0o777, exist_ok=True)
         with open(os.path.join(folder, self.name, 'output'), mode='wb') as f:
             pickle.dump(self.output, f)
-        with open(os.path.join(folder, self.name, 'inputs'), mode='wb') as f:
-            pickle.dump(self.inputs, f)
+        with open(os.path.join(folder, self.name, 'args'), mode='wb') as f:
+            pickle.dump(self.args, f)
+        with open(os.path.join(folder, self.name, 'kwargs'), mode='wb') as f:
+            pickle.dump(self.kwargs, f)
         with open(os.path.join(folder, self.name, 'latest'), mode='wb') as f:
             pickle.dump(self.latest, f)
 
@@ -411,8 +423,10 @@ class Fact(MindlessFact):
         os.makedirs(folder, mode=0o777, exist_ok=True)
         with open(os.path.join(folder, self.name, 'output'), mode='rb') as f:
             self.output = pickle.load(f)
-        with open(os.path.join(folder, self.name, 'inputs'), mode='rb') as f:
-            self.inputs = pickle.load(f)
+        with open(os.path.join(folder, self.name, 'args'), mode='rb') as f:
+            self.args = pickle.load(f)
+        with open(os.path.join(folder, self.name, 'kwargs'), mode='rb') as f:
+            self.kwargs = pickle.load(f)
         with open(os.path.join(folder, self.name, 'latest'), mode='rb') as f:
             self.latest = pickle.load(f)
 
