@@ -1,3 +1,17 @@
+'''
+todo:
+    - we need to apply context to datafacts too.
+    - we need the system (Fact) to determine which kind of fact it is. this
+      means we need to rename Fact as FullFact or something and make Fact an
+      object that instanteates the correct level of fact for them automatically
+      based mainly upon if the inputs are other facts or purely not.
+    - we should allow a fact to have different kinds of inputs (other agents,
+      aka Facts, or just plain old data, or callables that aren't facts, etc.),
+      we should integrate this with the apply_context of course. The goal with
+      this is to allow the user to assert top down control easily, but also
+      allow for bottom up intelligence and abstracted coordination.
+'''
+
 class DataFact():
     '''
     basically a static function that has no inputs and no caching, it returns data.
