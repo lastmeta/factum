@@ -55,8 +55,8 @@ class DataFact():
     def __call__(self, *args, **kwargs):
         return self.run(*args, **kwargs)
 
-    def __repr__(self, *args, **kwargs):
-        return self.run(*args, **kwargs)
+    def __str__(self, *args, **kwargs):
+        return str(self.run(*args, **kwargs))
 
     def __lt__(self, input):
         ''' adds it as an arg '''
@@ -329,10 +329,10 @@ class MindlessFact(DataFact):
                     graph.add_node(parent_name)
                     sizes.append(1200 if parent.latest else 600)
                     colors.append('#d7a9e3' if parent in self.input_facts() + self.input_callables() else '#8bbee8')
-                    pos[parent_name] = (left, random.random())  # ups_deterministic[ix]
+                    pos[parent_name] = (left, ups_deterministic[ix])  #  random.random())  # ups_deterministic[ix]
                 current_name = eval(f'current.{name_kind}{"" if name_kind == "name" else "()"}')
                 ancestors.append((parent_name, current_name))
-                if parent not in seen:
+                if parent not in seen and isinstance(parent, Fact) :
                     graph_heritage(current=parent, seen=seen, left=left*0.85407)
 
         import random
@@ -538,7 +538,15 @@ class Fact(MindlessFact):
             self.output = self.transform(**input_kwargs)
         else:
             self.output = self.transform(*input_args, **input_kwargs)
-        if temp != self.output:
+        #if temp != self.output:
+        #    self.set_latest()
+        if (
+            type(temp) != type(self.output) or (
+                isinstance(temp, pd.DataFrame) and
+                isinstance(self.output, pd.DataFrame) and
+                not temp.equals(self.output)) or
+            temp != self.output
+        ):
             self.set_latest()
 
     def transform(self, **kw):
