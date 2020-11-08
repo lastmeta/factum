@@ -329,7 +329,9 @@ class MindlessFact(DataFact):
                     graph.add_node(parent_name)
                     sizes.append(1200 if parent.latest else 600)
                     colors.append('#d7a9e3' if parent in self.input_facts() + self.input_callables() else '#8bbee8')
-                    pos[parent_name] = (left, ups_deterministic[ix])  #  random.random())  # ups_deterministic[ix]
+                    pos[parent_name] = (
+                        left*(1-((random.random()*.1)-0.05)),
+                        ups_deterministic[ix]*(1-((random.random()*.1)-0.05)))  #  random.random())  # ups_deterministic[ix]
                 current_name = eval(f'current.{name_kind}{"" if name_kind == "name" else "()"}')
                 ancestors.append((parent_name, current_name))
                 if parent not in seen and isinstance(parent, Fact) :
@@ -348,7 +350,7 @@ class MindlessFact(DataFact):
             graph.add_node(self_name)
             sizes.append(1200 if self.latest else 600)
             colors.append('#a8d5ba')
-            pos[self_name] = (1, .5)
+            pos[self_name] = (1, random.random())
         graph_heritage(current=self, seen=[], left=0.85407)
         graph.add_edges_from(ancestors, weight=1)
         # pos = nx.spring_layout(graph, **({} if quick else {'iterations':100}))
