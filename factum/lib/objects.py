@@ -52,6 +52,12 @@ class DataFact():
         import hashlib
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
+    def __call__(self, *args, **kwargs):
+        return self.run(*args, **kwargs)
+
+    def __repr__(self, *args, **kwargs):
+        return self.run(*args, **kwargs)
+
     def __lt__(self, input):
         ''' adds it as an arg '''
         self.add_input(input)
