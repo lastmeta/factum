@@ -12,6 +12,7 @@ todo:
       allow for bottom up intelligence and abstracted coordination.
 '''
 
+
 class DataFact():
     '''
     basically a static function that has no inputs and no caching, it returns data.
@@ -299,7 +300,7 @@ class MindlessFact(DataFact):
         ''' main '''
         return self.name
 
-    def visualize(self, size: tuple = (8,5), name_kind: str = 'name'):
+    def visualize(self, size: tuple = (12,6), name_kind: str = 'name'):
         '''
         size - tuple of 2 integers
         name_kind = 'name' or 'tree_name' or 'nested_name'
@@ -533,6 +534,7 @@ class Fact(MindlessFact):
         return self.output
 
     def function(self, *args, **kwargs):
+        import pandas as pd
         temp = self.output
         input_args = self.acquire_args(*args, **kwargs)
         input_kwargs = self.acquire_kwargs(*args, **kwargs)
