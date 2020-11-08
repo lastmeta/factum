@@ -6,7 +6,7 @@ def get_long_description():
 
 setuptools.setup(
     name='factum',
-    version='0.0.4',
+    version='0.0.5',
     description='a simple agent-inspired DAG composition and execution framework',
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
