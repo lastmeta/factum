@@ -44,6 +44,7 @@ class DataFact():
         self.latest = None
         self.outsig = None
         self.caller = None
+        self.docstr = None
         self.__dict__.update({
             k: v for k, v in kwargs.items()
             if k not in dir(Fact)})
@@ -52,6 +53,13 @@ class DataFact():
     def sha256(data):
         import hashlib
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
+
+    def doc(self, replacement=None):
+        self.docstr = replacement
+        if self.docstr:
+            return self.docstr
+        else:
+            return self.transform.__doc__.strip()
 
     def __call__(self, *args, **kwargs):
         return self.run(*args, **kwargs)
