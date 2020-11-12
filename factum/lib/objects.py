@@ -10,8 +10,11 @@ todo:
       we should integrate this with the apply_context of course. The goal with
       this is to allow the user to assert top down control easily, but also
       allow for bottom up intelligence and abstracted coordination.
+    - we should be able to specify names of predicessors that serve as stopping
+      points during a infinite gas (-1) computation. if we include a list of
+      names we can then specify the exact initial condition boundary.
 '''
-
+import pandas as pd
 
 class DataFact():
     '''
@@ -51,7 +54,17 @@ class DataFact():
     @staticmethod
     def sha256(data):
         import hashlib
-        return hashlib.sha256(data.encode('utf-8')).hexdigest()
+        if isinstance(data, pd.DataFrame):
+            try:
+                return hashlib.sha256(
+                    pd.util.hash_pandas_object(data, index=True).values
+                ).hexdigest()
+            except Exception as e:
+                return hashlib.sha256(str(self.latest)).hexdigest()
+        try:
+            return hashlib.sha256(data.encode('utf-8')).hexdigest()
+        except Exception as e:
+            return hashlib.sha256(str(self.latest)).hexdigest()
 
     @property
     def info(self):
