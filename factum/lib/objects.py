@@ -44,7 +44,6 @@ class DataFact():
         self.latest = None
         self.outsig = None
         self.caller = None
-        self.docstr = None
         self.__dict__.update({
             k: v for k, v in kwargs.items()
             if k not in dir(Fact)})
@@ -54,12 +53,13 @@ class DataFact():
         import hashlib
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
-    def doc(self, replacement=None):
-        self.docstr = replacement
-        if self.docstr:
-            return self.docstr
-        else:
-            return self.transform.__doc__.strip()
+    def desc(self, replacement=None):
+        return self.description(replacement)
+
+    def description(self, replacement=None):
+        self.transform.__doc__ = (
+            replacement if replacement else self.transform.__doc__)
+        return self.transform.__doc__.strip()
 
     def __call__(self, *args, **kwargs):
         return self.run(*args, **kwargs)
@@ -126,7 +126,8 @@ class DataFact():
             if self.transform.__name__ != 'transform'
             else (
                 self.__repr__().split()[0].split('.')[-1]
-                if self.__repr__().split()[0].split('.')[-1] not in ['Fact', 'DataFact', 'MindlessFact', 'Fact']
+                if self.__repr__().split()[0].split('.')[-1] not in [
+                    'Fact', 'DataFact', 'MindlessFact', 'Fact']
                 else generate_random_name(12)))
 
     def nested_name(self):
@@ -302,7 +303,9 @@ class MindlessFact(DataFact):
             [a for a in fact.args if not isinstance(a, DataFact)] +
             [v for v in fact.kwargs.values() if not isinstance(v, DataFact)]
             if fact.args is not None
-            else [v for v in fact.kwargs.values() if not isinstance(v, DataFact)])
+            else [
+                v for v in fact.kwargs.values()
+                if not isinstance(v, DataFact)])
 
     def transform(self, *args, **kwargs):
         ''' main '''
@@ -333,18 +336,28 @@ class MindlessFact(DataFact):
                 x / len(parents) + (1 / (len(parents) * 2))
                 for x in range(0, len(parents))]
             for ix, parent in enumerate(parents):
-                parent_name = eval(f'parent.{name_kind}{"" if name_kind == "name" else "()"}')
+                parent_name = eval(
+                    f'parent.{name_kind}'
+                    f'{"" if name_kind == "name" else "()"}')
                 if not graph.has_node(parent_name):
                     graph.add_node(parent_name)
                     sizes.append(1200 if parent.latest else 600)
-                    colors.append('#d7a9e3' if parent in self.input_facts() + self.input_callables() else '#8bbee8')
+                    colors.append(
+                        '#d7a9e3'
+                        if parent in self.input_facts() + self.input_callables()
+                        else '#8bbee8')
                     pos[parent_name] = (
                         left*(1-((random.random()*.1)-0.05)),
-                        ups_deterministic[ix]*(1-((random.random()*.1)-0.05)))  #  random.random())  # ups_deterministic[ix]
-                current_name = eval(f'current.{name_kind}{"" if name_kind == "name" else "()"}')
+                        ups_deterministic[ix]*(1-((random.random()*.1)-0.05)))
+                current_name = eval(
+                    f'current.{name_kind}'
+                    f'{"" if name_kind == "name" else "()"}')
                 ancestors.append((parent_name, current_name))
                 if parent not in seen and isinstance(parent, Fact) :
-                    graph_heritage(current=parent, seen=seen, left=left*0.85407)
+                    graph_heritage(
+                        current=parent,
+                        seen=seen,
+                        left=left*0.85407)
 
         import random
         import networkx as nx
@@ -354,7 +367,9 @@ class MindlessFact(DataFact):
         sizes = []
         ancestors = []
         pos = {}
-        self_name = eval(f'self.{name_kind}{"" if name_kind == "name" else "()"}')
+        self_name = eval(
+            f'self.{name_kind}'
+            f'{"" if name_kind == "name" else "()"}')
         if not graph.has_node(self_name):
             graph.add_node(self_name)
             sizes.append(1200 if self.latest else 600)
@@ -364,8 +379,11 @@ class MindlessFact(DataFact):
         graph.add_edges_from(ancestors, weight=1)
         # pos = nx.spring_layout(graph, **({} if quick else {'iterations':100}))
         # pos = {0: (0, 0), 1: (1, 0), 2: (0, 1), 3: (1, 1), 4: (0.5, 2.0)}
-
-        nx.draw(graph, pos, with_labels=True, node_color=colors, node_size=sizes)
+        nx.draw(
+            graph, pos,
+            with_labels=True,
+            node_color=colors,
+            node_size=sizes)
         plt.rcParams["figure.figsize"] = size
         plt.show()
 
