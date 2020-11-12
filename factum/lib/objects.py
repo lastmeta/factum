@@ -53,13 +53,14 @@ class DataFact():
         import hashlib
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
-    def desc(self, replacement=None):
-        return self.description(replacement)
+    @property
+    def info(self):
+        ''' shorthand for description '''
+        return self.description.strip()
 
-    def description(self, replacement=None):
-        self.transform.__doc__ = (
-            replacement if replacement else self.transform.__doc__)
-        return self.transform.__doc__.strip()
+    @property
+    def description(self):
+        return self.transform.__doc__
 
     def __call__(self, *args, **kwargs):
         return self.run(*args, **kwargs)
