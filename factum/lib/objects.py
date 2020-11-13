@@ -12,7 +12,9 @@ todo:
       allow for bottom up intelligence and abstracted coordination.
     - we should be able to specify names of predicessors that serve as stopping
       points during a infinite gas (-1) computation. if we include a list of
-      names we can then specify the exact initial condition boundary.
+      names we can then specify the exact initial condition boundary. I guess,
+      technically, this requirement is a specific version of the condition
+      argument... well its still useful.
 '''
 import pandas as pd
 
@@ -25,13 +27,14 @@ class DataFact():
     features:
         - has params (params are not facts)
         - no inputs (does not rely on other nodes, inputs must be data)
-        - no caching (runs it's computations everytime it's called)
+        - optionaal caching (runs once or everytime it's called)
     '''
 
     def __init__(
         self,
         transform: callable = None,
         name: str = None,
+        cached: bool = False,
         **kwargs
     ):
         '''
@@ -47,6 +50,9 @@ class DataFact():
         self.latest = None
         self.outsig = None
         self.caller = None
+        # allow caching - if cached turned on for DataFact, only runs once.
+        self.cached = cached
+        self.output = None
         self.__dict__.update({
             k: v for k, v in kwargs.items()
             if k not in dir(Fact)})
@@ -69,7 +75,7 @@ class DataFact():
     @property
     def info(self):
         ''' shorthand for description '''
-        return self.description.strip()
+        return (self.description or '').strip()
 
     @property
     def description(self):
@@ -185,15 +191,18 @@ class DataFact():
 
     def function(self):
         import collections
-        output = self.transform(*self.args, **self.kwargs)
-        if isinstance(output, collections.Hashable):
-            this_hash = DataFact.sha256(output)
+        # allow caching - if cached turned on for DataFact, only runs once.
+        if self.cached and self.output is not None:
+            return self.output
+        self.output = self.transform(*self.args, **self.kwargs)
+        if isinstance(self.output, collections.Hashable):
+            this_hash = DataFact.sha256(self.output)
             if this_hash != self.outsig:
                 self.outsig == this_hash
                 self.set_latest()
         else:
             self.set_latest()
-        return output
+        return self.output
 
     def set_latest(self):
         import datetime as dt
@@ -215,8 +224,7 @@ class MindlessFact(DataFact):
 
     features:
         - has inputs (relies on other nodes for data)
-        - no caching (must call inputs)
-        - no caching (must computations)
+        - optionaal caching (runs once or everytime it's called)
     '''
 
     def __init__(
